@@ -46,11 +46,100 @@ namespace job_allocator
 
             return true;
         }
+
+        public bool AddUsersToJob(int users, int id, string prefix)
+        {
+            var jobName = $"{prefix}{id}";
+            var job = RunningJobs.FirstOrDefault(j => j.Name == jobName);
+
+            if (job == null)
+                return AddJob(users, id, prefix);
+
+            if (users > AvailableUsers)
+                return false;
+
+            job.Users += users;
+
+            return true;
+        }
     }
 
     class Config
     {
         public List<Agent> Agents { get; set; }
+
+        public int TotalUsers
+        {
+            get
+            {
+                return Agents.Sum(a => a.MaxUsers);
+            }
+        }
+
+        public int AvailableUsers
+        {
+            get
+            {
+                return Agents.Sum(a => a.AvailableUsers);
+            }
+        }
+
+        public int TotalJobs
+        {
+            get
+            {
+                return Agents.Sum(a => a.MaxJobs);
+            }
+        }
+
+        public int AvailableJobs
+        {
+            get
+            {
+                return Agents.Sum(a => a.AvailableJobs);
+            }
+        }
+
+        public List<int> Tests { get; set; }
+
+        public int TotalUsersForTests
+        {
+            get
+            {
+                if (Tests == null)
+                    return 0;
+
+                return Tests.Sum();
+            }
+        }
+
+        public int MinJobsPerAgent
+        {
+            get
+            {
+                return Agents.Min(a => a.RunningJobs.Count);
+            }
+        }
+
+        internal Config Clone()
+        {
+            return new Config
+            {
+                Tests = this.Tests.Select(t => t).ToList(),
+                Agents = this.Agents.Select(a => new Agent
+                {
+                    MaxJobs = a.MaxJobs,
+                    MaxUsers = a.MaxUsers,
+                    Name = a.Name,
+                    RunningJobs = a.RunningJobs.Select(j => new Job
+                    {
+                        Id = j.Id,
+                        Name = j.Name,
+                        Users = j.Users
+                    }).ToList()
+                }).ToList()
+            };
+        }
     }
 
     class Job

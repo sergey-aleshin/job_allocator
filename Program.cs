@@ -16,8 +16,21 @@ namespace job_allocator
         static void Main(string[] args)
         {
             var config = ReadConfig(args);
-            
+
             PrintConfig(config);
+
+            string message = string.Empty;
+
+            var jobAllocator = new JobAllocator();
+            var newConfig = jobAllocator.AllocateJobs(config, out message);
+
+            if (newConfig != null)
+            {
+                Console.WriteLine("Tests: " + string.Join(" ", config.Tests));
+                PrintConfig(newConfig);
+            }
+            else
+                CloseAppWithError(message, -3);
         }
 
         static void PrintConfig(Config config)
@@ -25,7 +38,7 @@ namespace job_allocator
             foreach(var a in config.Agents)
             {
                 var jobs = string.Join(" ", a.RunningJobs.Select(j => j.Name + '(' + j.Users.ToString() + ')').ToArray());
-                Console.WriteLine($"{a.Name, 3} {a.MaxUsers, 4} {a.MaxJobs, 2} {jobs}");
+                Console.WriteLine($"{a.Name, 3} {a.MaxUsers, 4} {a.AvailableUsers, 4} {a.MaxJobs, 2} {a.AvailableJobs,2} {jobs}");
             }
         }
 
@@ -37,6 +50,9 @@ namespace job_allocator
             var readFromFile = false;
             var customAgentNumber = false;
             var fileName = string.Empty;
+            var scenarioFileName = string.Empty;
+            var readFromScenarioFile = false;
+
             int pos = 0;
 
             while(pos < args.Length)
@@ -63,6 +79,14 @@ namespace job_allocator
                         customAgentNumber = true;
                     } else
                         CloseAppWithError("Argument for option -a should be numeric!", -1);
+                } else if (args[pos].ToLower() == "-s")
+                {
+                    pos++;
+                    if (pos >= args.Length)
+                        CloseAppWithError("Missing argument for option -s!", -1);
+
+                    scenarioFileName = args[pos];
+                    readFromScenarioFile = true;
                 }
 
                 pos++;
@@ -71,10 +95,19 @@ namespace job_allocator
             if (readFromFile && customAgentNumber)
                 CloseAppWithError("You cannot use options -f and -a together!", -1);
 
-            if (!readFromFile)
-                return GenerateNewConfig(agents, jobs);
+            Config config = null;
 
-            return ReadConfigFromFile(fileName);
+            if (!readFromFile)
+                config = GenerateNewConfig(agents, jobs);
+            else 
+                config = ReadConfigFromFile(fileName);
+
+            if (readFromScenarioFile)
+            {
+                config.Tests = ReadScenarioFromFile(scenarioFileName);
+            }
+
+            return config;
         }
 
         private static void CloseAppWithError(string message, int code)
@@ -82,6 +115,33 @@ namespace job_allocator
             Console.WriteLine(message);
             
             Environment.Exit(code);
+        }
+        
+        private static List<int> ReadScenarioFromFile(string fileName)
+        {
+            var result = new List<int>();
+
+            string[] lines = null;
+
+            try
+            {
+                lines = File.ReadAllLines(fileName);
+            }
+            catch (Exception e)
+            {
+                CloseAppWithError(string.Format("Error: {0}", e.Message), -2);
+            }
+
+            foreach (var line in lines)
+            {
+                var match = Regex.Match(line, @"^\s*\d+\s*$");
+                if (match.Success)
+                {
+                    result.Add(Convert.ToInt32(line));
+                }
+            }
+            
+            return result;
         }
 
         private static Config ReadConfigFromFile(string fileName)
@@ -98,7 +158,8 @@ namespace job_allocator
 
             var config = new Config
             {
-                Agents = new List<Agent>()
+                Agents = new List<Agent>(),
+                Tests = new List<int>()
             };
 
             var counter = 0;
@@ -146,7 +207,8 @@ namespace job_allocator
         {
             var config = new Config
             {
-                Agents = new List<Agent>()
+                Agents = new List<Agent>(),
+                Tests = new List<int>()
             };
 
             var jobCounter = 0;
